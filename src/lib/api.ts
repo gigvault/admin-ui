@@ -1,4 +1,6 @@
-// GigVault API Client
+// GigVault API Client with Authentication
+
+import { authService } from './auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
@@ -35,34 +37,84 @@ class GigVaultAPI {
     this.baseURL = baseURL
   }
 
+  // Get authenticated headers
+  private getHeaders(): HeadersInit {
+    const token = authService.getToken()
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest', // CSRF protection
+    }
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    
+    return headers
+  }
+
+  // Handle API errors and token refresh
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (response.status === 401) {
+      // Token expired, try to refresh
+      try {
+        await authService.refreshToken()
+        throw new Error('TOKEN_EXPIRED')
+      } catch {
+        authService.logout()
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
+        throw new Error('Authentication required')
+      }
+    }
+
+    if (response.status === 403) {
+      throw new Error('Permission denied')
+    }
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(error || 'API request failed')
+    }
+
+    // Handle empty responses
+    if (response.status === 204) {
+      return undefined as T
+    }
+
+    return await response.json()
+  }
+
   // Certificates
   async listCertificates(): Promise<Certificate[]> {
-    const response = await fetch(`${this.baseURL}/api/v1/certificates`)
-    if (!response.ok) throw new Error('Failed to fetch certificates')
-    return response.json()
+    const response = await fetch(`${this.baseURL}/api/v1/certificates`, {
+      headers: this.getHeaders(),
+    })
+    return this.handleResponse<Certificate[]>(response)
   }
 
   async getCertificate(serial: string): Promise<Certificate> {
-    const response = await fetch(`${this.baseURL}/api/v1/certificates/${serial}`)
-    if (!response.ok) throw new Error('Failed to fetch certificate')
-    return response.json()
+    const response = await fetch(`${this.baseURL}/api/v1/certificates/${serial}`, {
+      headers: this.getHeaders(),
+    })
+    return this.handleResponse<Certificate>(response)
   }
 
   async signCertificate(csr: string, validityDays: number): Promise<Certificate> {
     const response = await fetch(`${this.baseURL}/api/v1/certificates/sign`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({ csr, validity_days: validityDays }),
     })
-    if (!response.ok) throw new Error('Failed to sign certificate')
-    return response.json()
+    return this.handleResponse<Certificate>(response)
   }
 
   async revokeCertificate(serial: string): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/v1/certificates/${serial}/revoke`, {
       method: 'POST',
+      headers: this.getHeaders(),
     })
-    if (!response.ok) throw new Error('Failed to revoke certificate')
+    return this.handleResponse<void>(response)
   }
 
   // Enrollments
@@ -70,35 +122,36 @@ class GigVaultAPI {
     const url = status 
       ? `${this.baseURL}/api/v1/enrollments?status=${status}`
       : `${this.baseURL}/api/v1/enrollments`
-    const response = await fetch(url)
-    if (!response.ok) throw new Error('Failed to fetch enrollments')
-    return response.json()
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    })
+    return this.handleResponse<Enrollment[]>(response)
   }
 
   async getEnrollment(id: string): Promise<Enrollment> {
-    const response = await fetch(`${this.baseURL}/api/v1/enrollments/${id}`)
-    if (!response.ok) throw new Error('Failed to fetch enrollment')
-    return response.json()
+    const response = await fetch(`${this.baseURL}/api/v1/enrollments/${id}`, {
+      headers: this.getHeaders(),
+    })
+    return this.handleResponse<Enrollment>(response)
   }
 
   async approveEnrollment(id: string, approvedBy: string): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/v1/enrollments/${id}/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({ approved_by: approvedBy }),
     })
-    if (!response.ok) throw new Error('Failed to approve enrollment')
+    return this.handleResponse<void>(response)
   }
 
   async rejectEnrollment(id: string, rejectedBy: string, reason: string): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/v1/enrollments/${id}/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({ rejected_by: rejectedBy, reason }),
     })
-    if (!response.ok) throw new Error('Failed to reject enrollment')
+    return this.handleResponse<void>(response)
   }
 }
 
 export const api = new GigVaultAPI()
-
