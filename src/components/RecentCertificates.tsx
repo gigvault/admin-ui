@@ -15,16 +15,30 @@ export function RecentCertificates() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Fetch from real API
-    setTimeout(() => {
-      setCertificates([
-        { id: 1, serial: 'A1B2C3D4', subject_cn: 'example.com', not_after: '2025-12-31', revoked: false },
-        { id: 2, serial: 'E5F6G7H8', subject_cn: 'api.example.com', not_after: '2025-11-15', revoked: false },
-        { id: 3, serial: 'I9J0K1L2', subject_cn: 'mail.example.com', not_after: '2025-10-20', revoked: false },
-        { id: 4, serial: 'M3N4O5P6', subject_cn: 'old.example.com', not_after: '2024-08-10', revoked: true },
-      ])
-      setLoading(false)
-    }, 500)
+    const fetchCertificates = async () => {
+      try {
+        const response = await fetch('/api/certificates?limit=10&sort=desc', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch certificates')
+        }
+        
+        const data = await response.json()
+        setCertificates(data)
+      } catch (error) {
+        console.error('Error fetching certificates:', error)
+        // Set empty array on error
+        setCertificates([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCertificates()
   }, [])
 
   if (loading) {

@@ -16,48 +16,76 @@ export function PendingEnrollments() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Fetch from real API
-    setTimeout(() => {
-      setEnrollments([
-        { 
-          id: '1', 
-          common_name: 'app.newclient.com', 
-          organization: 'New Client Inc',
-          email: 'admin@newclient.com',
-          status: 'pending',
-          created_at: '2025-10-28T10:30:00Z'
-        },
-        { 
-          id: '2', 
-          common_name: 'api.partner.org', 
-          organization: 'Partner Org',
-          email: 'ops@partner.org',
-          status: 'pending',
-          created_at: '2025-10-28T09:15:00Z'
-        },
-        { 
-          id: '3', 
-          common_name: 'secure.customer.io', 
-          organization: 'Customer LLC',
-          email: 'security@customer.io',
-          status: 'pending',
-          created_at: '2025-10-27T16:45:00Z'
-        },
-      ])
-      setLoading(false)
-    }, 500)
+    const fetchEnrollments = async () => {
+      try {
+        const response = await fetch('/api/enrollments/pending', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch enrollments')
+        }
+        
+        const data = await response.json()
+        setEnrollments(data)
+      } catch (error) {
+        console.error('Error fetching enrollments:', error)
+        // Set empty array on error
+        setEnrollments([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEnrollments()
   }, [])
 
-  const handleApprove = (id: string) => {
-    // TODO: Call API to approve
-    console.log('Approving enrollment:', id)
-    alert(`Approving enrollment ${id}`)
+  const handleApprove = async (id: string) => {
+    try {
+      const response = await fetch(`/api/enrollments/${id}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to approve enrollment')
+      }
+      
+      // Remove approved enrollment from list
+      setEnrollments(prev => prev.filter(e => e.id !== id))
+      alert('Enrollment approved successfully')
+    } catch (error) {
+      console.error('Error approving enrollment:', error)
+      alert('Failed to approve enrollment')
+    }
   }
 
-  const handleReject = (id: string) => {
-    // TODO: Call API to reject
-    console.log('Rejecting enrollment:', id)
-    alert(`Rejecting enrollment ${id}`)
+  const handleReject = async (id: string) => {
+    try {
+      const response = await fetch(`/api/enrollments/${id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to reject enrollment')
+      }
+      
+      // Remove rejected enrollment from list
+      setEnrollments(prev => prev.filter(e => e.id !== id))
+      alert('Enrollment rejected successfully')
+    } catch (error) {
+      console.error('Error rejecting enrollment:', error)
+      alert('Failed to reject enrollment')
+    }
   }
 
   if (loading) {
